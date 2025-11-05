@@ -1,2 +1,6 @@
 # Homework5
-Repository for homework 5, collaborator Frank
+Repository for homework 5;
+
+
+Gualandris Andrea
+Frank Zhu
