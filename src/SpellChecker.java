@@ -1,65 +1,168 @@
-import java.io.File;
-import java.util.Scanner;
+import java.io.*;
+import java.util.*;
 
 public class SpellChecker {
-    // Use this field everytime you need to read user input
-    private Scanner inputReader; // DO NOT MODIFY
+
+    // Per spec: Do not change these lines (a Scanner field called inputReader, initialized in constructor
+    // and closed at the end of start()).
+    private final Scanner inputReader;
 
     public SpellChecker() {
-      inputReader = new Scanner(System.in); // DO NOT MODIFY - must be included in this method
-      // TODO: Complete the body of this constructor, as necessary.
+        inputReader = new Scanner(System.in);
     }
-  
+
     public void start() {
-        // TODO: Complete the body of this method, as necessary.
-        // Ask user to input the dictionary file, check if valid
-        File dictionaryFile = null;
-        Scanner dictionaryScanner = null;
+        try {
+            // 1) Ask repeatedly for a valid dictionary file
+            String dictionaryFile = promptForExistingFile(Util.DICTIONARY_PROMPT);
+            System.out.printf(Util.DICTIONARY_SUCCESS_NOTIFICATION, dictionaryFile);
 
-        while (true) {
-          System.out.print(Util.DICTIONARY_PROMPT); // Prompt the user to enter the dictionary file
-          String fileName = inputReader.nextLine().trim(); // Save user input
+            WordRecommender recommender = new WordRecommender(dictionaryFile);
 
-          try {
-              dictionaryFile = new File(fileName);
-              dictionaryScanner = new Scanner(dictionaryFile); // Try to open the dictionary file
-              System.out.printf(Util.DICTIONARY_SUCCESS_NOTIFICATION, fileName); // Print success message
-              break; // If successful, end loop
-          } catch (Exception e) {
-              System.out.printf(Util.FILE_OPENING_ERROR); // If invalid, print error message and prompt new input
-          }
+            // 2) Ask repeatedly for a valid input file to spell check
+            String inputFile = promptForExistingFile(Util.FILENAME_PROMPT);
+            String outputFile = computeOutputFileName(inputFile);
+            System.out.printf(Util.FILE_SUCCESS_NOTIFICATION, inputFile, outputFile);
+
+            // 3) Spell check the input and write output
+            processFile(inputFile, outputFile, recommender);
+
+        } finally {
+            // Per spec: close the inputReader as the last line of start()
+            inputReader.close();
         }
-        dictionaryScanner.close();
+    }
 
-        // Ask user to input the text file, check if valid
-        File inputFile = null;
-        Scanner inputFileScanner = null;
-
+    private String promptForExistingFile(String prompt) {
         while (true) {
-            System.out.printf(Util.FILENAME_PROMPT); // Prompt the user to enter the text file
-            String fileName = inputReader.nextLine().trim(); // Save user input
+            System.out.print(prompt);
+            String path = safeReadLine().trim();
+            File f = new File(path);
+            if (f.exists() && f.isFile() && f.canRead()) {
+                return path;
+            }
+            System.out.print(Util.FILE_OPENING_ERROR);
+        }
+    }
 
-            try {
-                inputFile = new File(fileName);
-                inputFileScanner = new Scanner(inputFile); // Try to open the input file
+    private String computeOutputFileName(String inputFile) {
+        // For "fileName.txt" -> "fileName_chk.txt"; if no dot, append "_chk.txt"
+        int dot = inputFile.lastIndexOf('.');
+        if (dot > 0 && dot < inputFile.length() - 1) {
+            String stem = inputFile.substring(0, dot);
+            String ext  = inputFile.substring(dot); // includes dot
+            return stem + "_chk" + ext;
+        }
+        return inputFile + "_chk.txt";
+    }
 
-                // Create output file INPUT-FILE-NAME_chk.txt
-                String outputFileName;
-                if (fileName.contains(".")) {
-                    int periodIndex = fileName.lastIndexOf(".");
-                    outputFileName = fileName.substring(0, periodIndex) + "_chk.txt"; // Add "_chk.txt" to name of file
+    private void processFile(String inputFile, String outputFile, WordRecommender recommender) {
+        try (Scanner fileScanner = new Scanner(new File(inputFile));
+             PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(outputFile)))) {
+
+            boolean first = true;
+            while (fileScanner.hasNext()) {
+                String word = fileScanner.next().trim().toLowerCase();
+
+                String finalWord;
+                if (recommender.contains(word)) {
+                    finalWord = word;
                 } else {
-                    outputFileName = fileName + "_chk.txt";
+                    finalWord = handleMisspelling(word, recommender);
                 }
-                System.out.printf(Util.FILE_SUCCESS_NOTIFICATION, fileName, outputFileName); // Print success message and output file name
-                break; // If successful, end loop
-            } catch (Exception e) {
-                System.out.printf(Util.FILE_OPENING_ERROR); // If invalid, print error message and prompt new input
+
+                if (!first) out.print(' ');
+                out.print(finalWord);
+                first = false;
+            }
+        } catch (IOException e) {
+            // If writing fails, surface a simple message to stderr.
+            System.err.println("I/O error while processing files: " + e.getMessage());
+        }
+    }
+
+    private String handleMisspelling(String misspelled, WordRecommender recommender) {
+        System.out.printf(Util.MISSPELL_NOTIFICATION, misspelled);
+
+        // Build suggestions with (tolerance=2, commonPercent=0.50, topN=4)
+        ArrayList<String> suggestions = recommender.getWordSuggestions(misspelled, 2, 0.50, 4);
+
+        if (suggestions.isEmpty()) {
+            System.out.print(Util.NO_SUGGESTIONS);
+            // Only 'a' or 't'
+            while (true) {
+                System.out.print(Util.TWO_OPTION_PROMPT);
+                String choice = safeReadLine().trim();
+                if (choice.equals("a")) {
+                    return misspelled;
+                } else if (choice.equals("t")) {
+                    System.out.print(Util.MANUAL_REPLACEMENT_PROMPT);
+                    String repl = nextWordFromLine();
+                    return repl.toLowerCase();
+                } else {
+                    System.out.print(Util.INVALID_RESPONSE);
+                }
+            }
+        } else {
+            System.out.print(Util.FOLLOWING_SUGGESTIONS);
+            for (int i = 0; i < suggestions.size(); i++) {
+                System.out.printf(Util.SUGGESTION_ENTRY, (i + 1), suggestions.get(i));
+            }
+
+            while (true) {
+                System.out.print(Util.THREE_OPTION_PROMPT);
+                String choice = safeReadLine().trim();
+                if (choice.equals("a")) {
+                    return misspelled;
+                } else if (choice.equals("t")) {
+                    System.out.print(Util.MANUAL_REPLACEMENT_PROMPT);
+                    String repl = nextWordFromLine();
+                    return repl.toLowerCase();
+                } else if (choice.equals("r")) {
+                    System.out.print(Util.AUTOMATIC_REPLACEMENT_INFO);
+                    int idx = readValidIndex(suggestions.size());
+                    return suggestions.get(idx - 1);
+                } else {
+                    System.out.print(Util.INVALID_RESPONSE);
+                }
             }
         }
-        inputFileScanner.close();
-        inputReader.close();  // DO NOT MODIFY - must be the last line of this method!
     }
-  
-    // You can of course write other methods as well.
-  }
+
+    private int readValidIndex(int max) {
+        // Loop until a valid integer 1..max is entered.
+        while (true) {
+            System.out.print(Util.AUTOMATIC_REPLACEMENT_NUMBER_PROMPT);
+            String line = safeReadLine().trim();
+            try {
+                int n = Integer.parseInt(line);
+                if (n >= 1 && n <= max) return n;
+            } catch (NumberFormatException ignored) {}
+            System.out.print(Util.INVALID_RESPONSE);
+        }
+    }
+
+    /** Reads a full line safely; if stdin closes, returns empty string. */
+    private String safeReadLine() {
+        try {
+            if (inputReader.hasNextLine()) {
+                return inputReader.nextLine();
+            }
+        } catch (NoSuchElementException ignored) {}
+        return "";
+    }
+
+    /**
+     * After prompting for manual replacement, we want the next token (word).
+     * If the user types multiple words, we take the first non-empty token.
+     */
+    private String nextWordFromLine() {
+        String line = safeReadLine();
+        if (line == null) return "";
+        String[] parts = line.trim().split("\\s+");
+        for (String p : parts) {
+            if (!p.isEmpty()) return p;
+        }
+        return "";
+    }
+}
