@@ -2,7 +2,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.PriorityQueue;
 import java.util.Scanner;
 
 public class WordRecommender {
@@ -68,34 +67,44 @@ public class WordRecommender {
         return (double) inter.size() / union.size();
     }
 
-    /**
-     * Return up to topN candidates from the dictionary for replacement of 'word',
-     * filtered by length tolerance and minimum commonPercent, and ranked by left-right similarity.
-     *
-     * Must NOT use Collections.sort over entire dictionary. We maintain a size-N min-heap.
-     */
     public ArrayList<String> getWordSuggestions(String word, int tolerance, double commonPercent, int topN) {
-        if (topN <= 0) return new ArrayList<>();
+        // Step 1: Filter candidates by length and character overlap
+        ArrayList<String> candidates = new ArrayList<>();
 
-        // Min-heap keyed by similarity so we can keep only the best topN.
-        PriorityQueue<String> pq = new PriorityQueue<>(topN, (x, y) -> {
-            double sx = getSimilarity(word, x);
-            double sy = getSimilarity(word, y);
-            return Double.compare(sx, sy); // smallest similarity at head
-        });
-
-        for (String cand : dictionary) {
-            if (Math.abs(cand.length() - word.length()) > tolerance) continue;
-            if (commonPercent(word, cand) < commonPercent) continue;
-
-            pq.offer(cand);
-            if (pq.size() > topN) pq.poll();
+        for (String dictWord : dictionary) {
+            // Check length difference
+            int lengthDiff = Math.abs(dictWord.length() - word.length());
+            if (lengthDiff <= tolerance) {
+                // Check common character percentage
+                if (commonPercent(word, dictWord) >= commonPercent) {
+                    candidates.add(dictWord);
+                }
+            }
         }
 
-        // Extract from min-heap to list in descending similarity
-        ArrayList<String> out = new ArrayList<>();
-        while (!pq.isEmpty()) out.add(0, pq.poll()); // reverse order as we pop smallest first
-        // If ties in similarity exist, this order is acceptable.
-        return out;
+        // Step 2: Find top N by similarity WITHOUT any sorting library
+        ArrayList<String> topSuggestions = new ArrayList<>();
+
+        for (int i = 0; i < topN && !candidates.isEmpty(); i++) {
+            // Find the BEST candidate remaining
+            String bestCandidate = candidates.get(0);
+            double bestSimilarity = getSimilarity(word, bestCandidate);
+
+            for (int j = 1; j < candidates.size(); j++) {
+                String candidate = candidates.get(j);
+                double similarity = getSimilarity(word, candidate);
+
+                if (similarity > bestSimilarity) {
+                    bestSimilarity = similarity;
+                    bestCandidate = candidate;
+                }
+            }
+
+            // Add best to results and remove from candidates
+            topSuggestions.add(bestCandidate);
+            candidates.remove(bestCandidate);
+        }
+
+        return topSuggestions;
     }
 }
