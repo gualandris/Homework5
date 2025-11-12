@@ -10,6 +10,10 @@ public class SpellChecker {
     private HashSet<String> dictionarySet;
     private WordRecommender recommender;
 
+    void setDictionarySet(HashSet<String> dictionarySet) { // Setter method for testing
+        this.dictionarySet = dictionarySet;
+    }
+
     public SpellChecker() {
         inputReader = new Scanner(System.in);
     }

@@ -13,6 +13,7 @@ public class WordRecommenderTest {
         testSimilarity();
         testCommonPercent();
         testGetWordSuggestions1();
+        testGetWordSuggestions2();
         System.out.println("All WordRecommender.java tests finished.");
     }
 
