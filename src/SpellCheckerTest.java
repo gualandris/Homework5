@@ -1,10 +1,7 @@
 import java.io.File;
-import java.io.StringReader;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Scanner;
 import java.io.*;
-import java.util.*;
 
 public class SpellCheckerTest {
 
