@@ -21,30 +21,48 @@ public class SpellChecker {
     public void start() {
         // Step 1: Get valid dictionary filename
         String dictionaryFileName = null;
-        while (true) {
-            System.out.printf(Util.DICTIONARY_PROMPT);
-            String fileName = inputReader.nextLine().trim();
 
-            try {
-                File file = new File(fileName);
-                Scanner testScanner = new Scanner(file);
-                testScanner.close();
-                dictionaryFileName = fileName;
-                System.out.printf(Util.DICTIONARY_SUCCESS_NOTIFICATION, fileName);
-                break;
+        while (true) {
+            System.out.printf(Util.DICTIONARY_PROMPT); // Prompt the user to enter a dictionary file
+            String fileName = inputReader.nextLine().trim();
+            File file = new File(fileName);
+            boolean valid = true;
+            boolean hasWord = false;
+
+            try (Scanner testScanner = new Scanner(file)) {
+                while (testScanner.hasNextLine()) {
+                    String line = testScanner.nextLine().trim();
+                    if (line.isEmpty()) {
+                        continue;
+                    }
+                    if (!line.matches("^[a-z]+$")) { // Check if the dictionary only contains one alphabetical word per line
+                        valid = false;
+                        break;
+                    }
+                    hasWord = true;
+                }
             } catch (Exception e) {
-                System.out.printf(Util.FILE_OPENING_ERROR);
+                valid = false; // File cannot be opened
             }
+            if (!valid || !hasWord) { // Print error message if the dictionary is empty or contains invalid characters
+                System.out.printf(Util.FILE_OPENING_ERROR);
+                continue;
+            }
+            // If dictionary file is valid
+            dictionaryFileName = fileName;
+            System.out.printf(Util.DICTIONARY_SUCCESS_NOTIFICATION, fileName);
+            break;
         }
 
         // Step 2: Load dictionary into HashSet
         dictionarySet = new HashSet<>();
-        try {
-            Scanner dictScanner = new Scanner(new File(dictionaryFileName));
+        try (Scanner dictScanner = new Scanner(new File(dictionaryFileName))) {
             while (dictScanner.hasNextLine()) {
-                dictionarySet.add(dictScanner.nextLine().trim().toLowerCase());
+                String word = dictScanner.nextLine().trim().toLowerCase();
+                if (!word.isEmpty()) {
+                    dictionarySet.add(word);
+                }
             }
-            dictScanner.close();
         } catch (Exception e) {
             // Silent fail - dictionary already validated
         }
