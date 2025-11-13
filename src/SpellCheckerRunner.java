@@ -4,4 +4,6 @@ public class SpellCheckerRunner {
         SpellChecker checker = new SpellChecker();
         checker.start();
     }
+
+
 }
